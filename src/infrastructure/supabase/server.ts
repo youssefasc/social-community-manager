@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database.types";
 
@@ -43,7 +44,6 @@ export function createSupabaseAdminClient() {
       "SUPABASE_SERVICE_ROLE_KEY is not set. Required for admin/background operations."
     );
   }
-  const { createClient } = require("@supabase/supabase-js");
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
