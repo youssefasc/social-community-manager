@@ -1,36 +1,139 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Social Community Manager
 
-## Getting Started
+Organize and manage content you publish to communities and groups you administer or are authorized to post in.
 
-First, run the development server:
+Built with Next.js 15, TypeScript, Tailwind CSS v4, shadcn/ui, Supabase, and Playwright, following Clean Architecture.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Stack
+
+- **Framework:** Next.js 15 (App Router, Server Actions, Turbopack)
+- **Language:** TypeScript (strict)
+- **Styling:** Tailwind CSS v4 + shadcn/ui (hand-configured — the shadcn registry was unreachable from the build sandbox, so components were authored directly from the same source)
+- **Backend:** Supabase (Postgres + Auth + Storage), fully typed against the applied schema
+- **Automation:** Playwright, used only to *reuse* a manually-captured browser session — never to automate a login
+- **Rich text:** Tiptap
+- **Deployment:** Docker (multi-stage, `output: standalone`) or Vercel
+
+## Architecture
+
+```
+src/
+  app/                    # Next.js routes (App Router)
+    (app)/                # Authenticated shell: dashboard, accounts, finder, communities,
+                           # content, scheduler, media, activity, settings
+    login/ signup/ auth/  # Public auth routes
+    api/                  # Route handlers (e.g. finder search)
+  domain/                 # Entities, repository interfaces, value objects
+  application/
+    use-cases/            # One folder per module; pure functions taking a Supabase client
+  infrastructure/
+    supabase/              # browser/server/middleware/admin clients
+    automation/             # Playwright publishing worker + platform adapter interface
+    finder/                  # Community search integration point
+    repositories/
+  components/
+    ui/                    # shadcn primitives
+    layout/                # Sidebar, topbar, theme toggle
+    shared/                 # Feature components (dialogs, forms, cards)
+  types/database.types.ts  # Hand-authored types matching the live schema exactly
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Each use-case takes a Supabase client and plain arguments — no framework coupling — so the application layer can be tested or reused outside Next.js.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Supabase project
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Name:** `social-community-manager`
+- **Project ref:** `wnxsfcclkjsgerjqmnrl`
+- **Region:** `eu-central-1`
+- Dashboard: https://supabase.com/dashboard/project/wnxsfcclkjsgerjqmnrl
 
-## Learn More
+Schema (live, applied during this build):
 
-To learn more about Next.js, take a look at the following resources:
+| Table | Purpose |
+|---|---|
+| `profiles` | Role, theme, notification prefs (auto-created on signup) |
+| `connected_accounts` | Platform accounts + a reference to a stored browser session |
+| `communities` | Saved communities/groups, tags, privacy, member count |
+| `content_items` | Drafts, ready posts, and templates (rich HTML + plain text) |
+| `media_items` | Uploaded images/videos (Supabase Storage) |
+| `scheduled_posts` | Queue linking content -> community -> account -> time |
+| `activity_logs` | Full audit trail (info/success/warning/error) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+All tables have row-level security scoped to `auth.uid()`. Storage has two private buckets: `media` and `sessions`, each isolated per user by folder prefix.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Local setup
 
-## Deploy on Vercel
+```bash
+npm install
+cp .env.local.example .env.local   # fill in your Supabase keys
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Required env vars (see `.env.local.example`):
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=   # server-only, needed for the scheduler worker
+```
+
+## Docker
+
+```bash
+docker compose up app                     # web app only
+docker compose --profile worker up        # web app + scheduler worker
+```
+
+Or build directly:
+
+```bash
+docker build -t social-community-manager .
+docker run -p 3000:3000 --env-file .env.local social-community-manager
+```
+
+## Connected Accounts & the Scheduler — how automation is scoped
+
+This app **never automates a login, join, follow, or any action you didn't explicitly request.** For Connected Accounts:
+
+1. Run `node scripts/capture-session.js <platform-login-url>` — a real, visible browser opens.
+2. Log in yourself, including any 2FA/captcha.
+3. Press Enter in the terminal; Playwright saves `storageState` (cookies/local storage) to `session-output.json`.
+4. Upload that file to the private `sessions` Storage bucket under `${user_id}/${account_id}.json`, and set `connected_accounts.storage_state_ref` to that path.
+
+The scheduler queue (`src/infrastructure/automation/publisher.ts`) only ever **reuses** that already-authenticated session to submit content you scheduled. Per-platform "submit a post" logic is intentionally left as a `PlatformAdapter` you implement and register — review each platform's terms for automated posting on accounts you administer before enabling one.
+
+Run the worker that drains the queue:
+
+```bash
+node scripts/run-scheduler-worker.js
+```
+
+or trigger `drainDueQueueUseCase` from a platform cron (e.g. Vercel Cron -> a protected API route) instead of a standalone process.
+
+## Community Finder
+
+`src/infrastructure/finder/community-finder.ts` is the integration point for keyword search. It currently returns no results by design — no fabricated data — until you wire in a search provider (e.g. a search API restricted to public community/group pages). The UI already supports manual "save by URL" in the meantime, and never automates joining anything.
+
+## Module status
+
+| Module | Status |
+|---|---|
+| Auth (login/signup/logout, protected routes) | Complete |
+| Dashboard | Complete, live data |
+| Connected Accounts | Complete (manual session capture, see above) |
+| Community Finder | UI + manual save complete; search provider is a documented integration point |
+| Community Manager | Complete (search, filter, tags, CSV export) |
+| Content Library | Complete (rich text, templates, drafts) |
+| Scheduler | Complete (queue + calendar view); live publishing needs a `PlatformAdapter` |
+| Media Library | Complete (upload, search, categories, signed URLs) |
+| Activity Logs | Complete |
+| Settings | Complete |
+| Docker | Multi-stage build + compose |
+
+## Type generation
+
+`src/types/database.types.ts` is hand-authored to exactly match the applied schema. If you have the Supabase CLI locally, you can regenerate it instead:
+
+```bash
+supabase gen types typescript --project-id wnxsfcclkjsgerjqmnrl > src/types/database.types.ts
+```
