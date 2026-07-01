@@ -46,6 +46,7 @@ export interface Database {
           id: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
+          Relationships: [];
       };
       connected_accounts: {
         Row: {
@@ -67,6 +68,7 @@ export interface Database {
           display_name: string;
         };
         Update: Partial<Database["public"]["Tables"]["connected_accounts"]["Row"]>;
+          Relationships: [];
       };
       communities: {
         Row: {
@@ -90,6 +92,7 @@ export interface Database {
           url: string;
         };
         Update: Partial<Database["public"]["Tables"]["communities"]["Row"]>;
+          Relationships: [];
       };
       media_items: {
         Row: {
@@ -113,6 +116,7 @@ export interface Database {
           media_type: MediaType;
         };
         Update: Partial<Database["public"]["Tables"]["media_items"]["Row"]>;
+          Relationships: [];
       };
       content_items: {
         Row: {
@@ -134,6 +138,7 @@ export interface Database {
           title: string;
         };
         Update: Partial<Database["public"]["Tables"]["content_items"]["Row"]>;
+          Relationships: [];
       };
       scheduled_posts: {
         Row: {
@@ -156,6 +161,7 @@ export interface Database {
           scheduled_for: string;
         };
         Update: Partial<Database["public"]["Tables"]["scheduled_posts"]["Row"]>;
+          Relationships: [];
       };
       activity_logs: {
         Row: {
@@ -175,7 +181,21 @@ export interface Database {
           message: string;
         };
         Update: Partial<Database["public"]["Tables"]["activity_logs"]["Row"]>;
+          Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: {
+      app_role: AppRole;
+      account_platform: AccountPlatform;
+      account_status: AccountStatus;
+      community_privacy: CommunityPrivacy;
+      media_type: MediaType;
+      content_status: ContentStatus;
+      schedule_status: ScheduleStatus;
+      activity_level: ActivityLevel;
+    };
+    CompositeTypes: Record<string, never>;
   };
 }
