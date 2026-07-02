@@ -31,8 +31,11 @@ export async function saveManualCommunityAction(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const url = String(formData.get("url") ?? "").trim();
-  const platform = String(formData.get("platform") ?? "other") as
-    | "facebook" | "linkedin" | "reddit" | "discord" | "telegram" | "other";
+  const platform: "facebook" | "telegram" | "other" = /facebook\.com/i.test(url)
+    ? "facebook"
+    : /t\.me/i.test(url)
+      ? "telegram"
+      : "other";
 
   if (!name || !url) throw new Error("Name and URL are required");
 

@@ -43,9 +43,9 @@ Each use-case takes a Supabase client and plain arguments — no framework coupl
 ## Supabase project
 
 - **Name:** `social-community-manager`
-- **Project ref:** `wnxsfcclkjsgerjqmnrl`
+- **Project ref:** `kygnenyfetbzgzuqhddc`
 - **Region:** `eu-central-1`
-- Dashboard: https://supabase.com/dashboard/project/wnxsfcclkjsgerjqmnrl
+- Dashboard: https://supabase.com/dashboard/project/kygnenyfetbzgzuqhddc
 
 Schema (live, applied during this build):
 
@@ -110,9 +110,23 @@ node scripts/run-scheduler-worker.js
 
 or trigger `drainDueQueueUseCase` from a platform cron (e.g. Vercel Cron -> a protected API route) instead of a standalone process.
 
-## Community Finder
+## Community Finder — Facebook & Telegram groups
 
-`src/infrastructure/finder/community-finder.ts` is the integration point for keyword search. It currently returns no results by design — no fabricated data — until you wire in a search provider (e.g. a search API restricted to public community/group pages). The UI already supports manual "save by URL" in the meantime, and never automates joining anything.
+`src/infrastructure/finder/community-finder.ts` searches **publicly indexed web
+results** for Facebook and Telegram groups matching a keyword, using the Bing
+Web Search API restricted to `site:facebook.com/groups` and `site:t.me`. It
+returns `[]` (no fabricated data) until `BING_SEARCH_API_KEY` is set.
+
+To enable it:
+1. Create a free Bing Search resource: https://portal.azure.com -> "Bing Search v7" (free tier: 1,000 calls/month)
+2. Copy the key into `BING_SEARCH_API_KEY` in your environment / Vercel project settings
+
+**"Join" always just opens the group's URL in a new tab** — the user joins with
+their own account. This app never automates joining, requesting access, or
+any action on a community/group beyond opening it. Facebook's own Groups API
+has been closed to third-party posting/joining automation since 2018 — this
+is a platform-level restriction, not a limitation of this codebase, and it
+applies regardless of how a request is framed.
 
 ## Module status
 

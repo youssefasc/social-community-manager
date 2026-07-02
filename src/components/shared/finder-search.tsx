@@ -79,9 +79,9 @@ export function FinderSearch() {
         <CardContent className="flex items-start gap-3 py-4">
           <Info className="mt-0.5 size-5 shrink-0 text-primary" />
           <p className="text-sm text-muted-foreground">
-            Results show publicly available metadata only. This app never
-            automates joining a community — save the ones you&apos;re
-            interested in and open them yourself to request access.
+            Results show publicly available metadata only. <strong>&quot;Join&quot;
+            opens the group in your browser</strong> — you join it yourself with
+            your own account. This app never automates joining anything.
           </p>
         </CardContent>
       </Card>
@@ -89,11 +89,12 @@ export function FinderSearch() {
       {searched && !isSearching && results.length === 0 && (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No search provider is configured yet for automated discovery.
+            No search API is configured yet, or no public groups matched.
             <br />
-            Use <strong>&quot;Add manually&quot;</strong> above to save a community
-            you&apos;ve already found by URL — see the README for wiring up a
-            search provider (e.g. a search API) to power this box.
+            Set <code className="rounded bg-muted px-1">BING_SEARCH_API_KEY</code> in
+            your environment to enable live search (see README), or use{" "}
+            <strong>&quot;Add manually&quot;</strong> above to save a group you&apos;ve
+            already found by URL.
           </CardContent>
         </Card>
       )}
@@ -119,7 +120,7 @@ export function FinderSearch() {
               <div className="flex gap-2 pt-1">
                 <Button size="sm" variant="outline" asChild className="flex-1">
                   <a href={result.url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="size-4" /> Open
+                    <ExternalLink className="size-4" /> Join
                   </a>
                 </Button>
                 <Button
@@ -178,9 +179,8 @@ function ManualAddDialog() {
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="url">URL</Label>
-            <Input id="url" name="url" required type="url" placeholder="https://facebook.com/groups/..." />
+            <Input id="url" name="url" required type="url" placeholder="https://facebook.com/groups/... or https://t.me/..." />
           </div>
-          <input type="hidden" name="platform" value="other" />
           <DialogFooter>
             <Button type="submit" disabled={isPending}>
               {isPending ? "Saving..." : "Save to workspace"}
