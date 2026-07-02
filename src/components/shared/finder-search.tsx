@@ -91,8 +91,11 @@ export function FinderSearch() {
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             No search API is configured yet, or no public groups matched.
             <br />
-            Set <code className="rounded bg-muted px-1">BING_SEARCH_API_KEY</code> in
-            your environment to enable live search (see README), or use{" "}
+            Set <code className="rounded bg-muted px-1">GOOGLE_SEARCH_API_KEY</code>{" "}
+            + <code className="rounded bg-muted px-1">GOOGLE_SEARCH_ENGINE_ID</code>{" "}
+            (and optionally <code className="rounded bg-muted px-1">BING_SEARCH_API_KEY</code>{" "}
+            as an automatic fallback once Google&apos;s free quota runs out) to
+            enable live search — see README. Or use{" "}
             <strong>&quot;Add manually&quot;</strong> above to save a group you&apos;ve
             already found by URL.
           </CardContent>

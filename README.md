@@ -113,13 +113,22 @@ or trigger `drainDueQueueUseCase` from a platform cron (e.g. Vercel Cron -> a pr
 ## Community Finder — Facebook & Telegram groups
 
 `src/infrastructure/finder/community-finder.ts` searches **publicly indexed web
-results** for Facebook and Telegram groups matching a keyword, using the Bing
-Web Search API restricted to `site:facebook.com/groups` and `site:t.me`. It
-returns `[]` (no fabricated data) until `BING_SEARCH_API_KEY` is set.
+results** for Facebook and Telegram groups matching a keyword, restricted to
+`site:facebook.com/groups` and `site:t.me`. It tries **Google Programmable
+Search Engine first** (100 free queries/day); once that daily quota is
+exhausted, it **automatically falls back to Bing Web Search API** for the rest
+of the day, so search keeps working without any manual switching. If neither
+key is set, it returns `[]` — no fabricated data.
 
-To enable it:
-1. Create a free Bing Search resource: https://portal.azure.com -> "Bing Search v7" (free tier: 1,000 calls/month)
-2. Copy the key into `BING_SEARCH_API_KEY` in your environment / Vercel project settings
+**Google setup** (primary, free tier: 100 queries/day):
+1. https://programmablesearchengine.google.com/ → create a search engine → enable "Search the entire web"
+2. Copy its **Search engine ID** into `GOOGLE_SEARCH_ENGINE_ID`
+3. https://console.cloud.google.com/apis/credentials → enable "Custom Search API" → create an API key
+4. Copy it into `GOOGLE_SEARCH_API_KEY`
+
+**Bing setup** (optional fallback, free tier: 1,000 calls/month):
+1. https://portal.azure.com → create a "Bing Search v7" resource
+2. Copy its key into `BING_SEARCH_API_KEY`
 
 **"Join" always just opens the group's URL in a new tab** — the user joins with
 their own account. This app never automates joining, requesting access, or
