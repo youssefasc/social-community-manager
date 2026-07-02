@@ -46,7 +46,10 @@ const BING_ENDPOINT = "https://api.bing.microsoft.com/v7.0/search";
 async function googleSearch(query: string): Promise<NormalizedItem[] | null> {
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
   const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
-  if (!apiKey || !cx) return [];
+  if (!apiKey || !cx) {
+    console.error("[finder] GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID not set");
+    return [];
+  }
 
   const params = new URLSearchParams({ key: apiKey, cx, q: query, num: "10" });
   const res = await fetch(`${GOOGLE_ENDPOINT}?${params.toString()}`, { cache: "no-store" });
@@ -56,15 +59,21 @@ async function googleSearch(query: string): Promise<NormalizedItem[] | null> {
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
     const reason: string | undefined = body?.error?.errors?.[0]?.reason;
+    console.error("[finder] Google 403:", JSON.stringify(body?.error ?? body));
     if (reason === "rateLimitExceeded" || reason === "dailyLimitExceeded" || reason === "quotaExceeded") {
       return null; // quota exhausted -> fall back to Bing
     }
     return [];
   }
 
-  if (!res.ok) return [];
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error(`[finder] Google search failed: ${res.status}`, body.slice(0, 500));
+    return [];
+  }
 
   const data = await res.json();
+  console.error(`[finder] Google returned ${data?.items?.length ?? 0} items for query: ${query}`);
   const items = (data?.items ?? []) as { title: string; link: string; snippet: string }[];
   return items.map((i) => ({ title: i.title, url: i.link, snippet: i.snippet }));
 }
