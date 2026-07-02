@@ -105,13 +105,18 @@ async function searxSearch(query: string): Promise<NormalizedItem[]> {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; CommunityFinder/1.0)" },
         signal: AbortSignal.timeout(8000),
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        console.error(`[finder] SearXNG ${instance} returned ${res.status}`);
+        continue;
+      }
       const data = await res.json();
       const items = (data?.results ?? []) as { title: string; url: string; content?: string }[];
+      console.error(`[finder] SearXNG ${instance} returned ${items.length} items`);
       if (items.length > 0) {
         return items.map((i) => ({ title: i.title, url: i.url, snippet: i.content ?? "" }));
       }
-    } catch {
+    } catch (err) {
+      console.error(`[finder] SearXNG ${instance} threw:`, err instanceof Error ? err.message : String(err));
       continue; // try the next instance
     }
   }
