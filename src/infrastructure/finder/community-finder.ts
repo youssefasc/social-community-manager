@@ -2,12 +2,18 @@
  * Community Finder — searches PUBLICLY INDEXED web results for
  * Facebook and Telegram groups matching a keyword.
  *
- * Provider strategy: Google Programmable Search Engine is tried first
- * (free tier: 100 queries/day). If Google reports its quota exhausted
- * (HTTP 429, or 403 with a "quota"/"rateLimitExceeded" reason), the
- * same query is retried on Bing Web Search API as a fallback so search
- * keeps working without the user having to do anything. If neither
- * provider is configured, this returns [] — no fabricated data.
+ * Provider strategy, in order:
+ *  1. Google Programmable Search Engine, if GOOGLE_SEARCH_API_KEY +
+ *     GOOGLE_SEARCH_ENGINE_ID are set (100 free queries/day, requires
+ *     a billing account linked on the Google Cloud project).
+ *  2. Bing Web Search API, if BING_SEARCH_API_KEY is set — used as a
+ *     fallback once Google's daily quota is exhausted, or directly if
+ *     Google isn't configured at all.
+ *  3. SearXNG — a free, open-source metasearch engine with no signup,
+ *     no API key, and no billing account required. Public instances
+ *     are run by volunteers, so availability isn't guaranteed the way
+ *     a paid API is; several instances are tried in sequence. This is
+ *     the default with zero configuration.
  *
  * This intentionally does NOT:
  *  - call any authenticated/private platform API
@@ -38,42 +44,39 @@ interface NormalizedItem {
 const GOOGLE_ENDPOINT = "https://www.googleapis.com/customsearch/v1";
 const BING_ENDPOINT = "https://api.bing.microsoft.com/v7.0/search";
 
-/**
- * Returns results from Google, or `null` specifically when the quota
- * is exhausted (so the caller knows to fall back to Bing) as opposed
- * to "not configured" or "no results", both of which return [].
- */
+// Public SearXNG instances that support JSON output. Tried in order;
+// the first one that responds successfully wins. See https://searx.space
+// for a live list if these ever go offline — swap them in here.
+const SEARX_INSTANCES = [
+  "https://searx.be",
+  "https://search.sapti.me",
+  "https://searx.tiekoetter.com",
+  "https://priv.au",
+];
+
 async function googleSearch(query: string): Promise<NormalizedItem[] | null> {
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
   const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
-  if (!apiKey || !cx) {
-    console.error("[finder] GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID not set");
-    return [];
-  }
+  if (!apiKey || !cx) return [];
 
   const params = new URLSearchParams({ key: apiKey, cx, q: query, num: "10" });
   const res = await fetch(`${GOOGLE_ENDPOINT}?${params.toString()}`, { cache: "no-store" });
 
-  if (res.status === 429) return null; // quota exhausted -> fall back to Bing
+  if (res.status === 429) return null; // quota exhausted -> fall back
 
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
     const reason: string | undefined = body?.error?.errors?.[0]?.reason;
     console.error("[finder] Google 403:", JSON.stringify(body?.error ?? body));
     if (reason === "rateLimitExceeded" || reason === "dailyLimitExceeded" || reason === "quotaExceeded") {
-      return null; // quota exhausted -> fall back to Bing
+      return null; // quota exhausted -> fall back
     }
     return [];
   }
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error(`[finder] Google search failed: ${res.status}`, body.slice(0, 500));
-    return [];
-  }
+  if (!res.ok) return [];
 
   const data = await res.json();
-  console.error(`[finder] Google returned ${data?.items?.length ?? 0} items for query: ${query}`);
   const items = (data?.items ?? []) as { title: string; link: string; snippet: string }[];
   return items.map((i) => ({ title: i.title, url: i.link, snippet: i.snippet }));
 }
@@ -93,15 +96,26 @@ async function bingSearch(query: string): Promise<NormalizedItem[]> {
   return items.map((i) => ({ title: i.name, url: i.url, snippet: i.snippet }));
 }
 
-/**
- * Tries Google first; falls back to Bing only when Google's quota is
- * specifically exhausted. If Google isn't configured at all, goes
- * straight to Bing. If neither is configured, returns [].
- */
-async function searchWithFallback(query: string): Promise<NormalizedItem[]> {
-  const googleResults = await googleSearch(query);
-  if (googleResults !== null) return googleResults;
-  return bingSearch(query);
+async function searxSearch(query: string): Promise<NormalizedItem[]> {
+  for (const instance of SEARX_INSTANCES) {
+    try {
+      const params = new URLSearchParams({ q: query, format: "json" });
+      const res = await fetch(`${instance}/search?${params.toString()}`, {
+        cache: "no-store",
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; CommunityFinder/1.0)" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const items = (data?.results ?? []) as { title: string; url: string; content?: string }[];
+      if (items.length > 0) {
+        return items.map((i) => ({ title: i.title, url: i.url, snippet: i.content ?? "" }));
+      }
+    } catch {
+      continue; // try the next instance
+    }
+  }
+  return [];
 }
 
 function extractMemberCount(snippet: string): number | undefined {
@@ -129,18 +143,31 @@ function toResult(item: NormalizedItem, platform: FinderResult["platform"]): Fin
 }
 
 /**
+ * Tries Google first (if configured), then Bing (if configured), then
+ * falls back to free SearXNG instances — so this works with zero setup
+ * out of the box, and upgrades automatically if paid API keys are added.
+ */
+async function search(query: string): Promise<NormalizedItem[]> {
+  const googleResults = await googleSearch(query);
+  if (googleResults !== null && googleResults.length > 0) return googleResults;
+
+  const bingResults = await bingSearch(query);
+  if (bingResults.length > 0) return bingResults;
+
+  return searxSearch(query);
+}
+
+/**
  * Searches public web results for Facebook and Telegram groups
- * matching the keyword, using Google with automatic Bing fallback
- * once Google's daily quota is exhausted. Returns [] if neither
- * provider is configured — see README "Community Finder".
+ * matching the keyword.
  */
 export async function searchCommunitiesUseCase(keyword: string): Promise<FinderResult[]> {
   const trimmed = keyword.trim();
   if (!trimmed) return [];
 
   const [fbItems, tgItems] = await Promise.all([
-    searchWithFallback(`${trimmed} site:facebook.com/groups`),
-    searchWithFallback(`${trimmed} site:t.me`),
+    search(`${trimmed} site:facebook.com/groups`),
+    search(`${trimmed} site:t.me`),
   ]);
 
   const results = [

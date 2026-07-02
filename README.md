@@ -114,20 +114,25 @@ or trigger `drainDueQueueUseCase` from a platform cron (e.g. Vercel Cron -> a pr
 
 `src/infrastructure/finder/community-finder.ts` searches **publicly indexed web
 results** for Facebook and Telegram groups matching a keyword, restricted to
-`site:facebook.com/groups` and `site:t.me`. It tries **Google Programmable
-Search Engine first** (100 free queries/day); once that daily quota is
-exhausted, it **automatically falls back to Bing Web Search API** for the rest
-of the day, so search keeps working without any manual switching. If neither
-key is set, it returns `[]` — no fabricated data.
+`site:facebook.com/groups` and `site:t.me`.
 
-**Google setup** (primary, free tier: 100 queries/day):
+**Works with zero setup** via [SearXNG](https://docs.searxng.org/), a free
+open-source metasearch engine — no API key, no signup, no billing account.
+Several public instances are tried in sequence since they're community-run
+and availability can vary; swap the list in `SEARX_INSTANCES` if needed.
+
+Optionally, paid providers can be layered on top for more reliability (tried
+first, in this order, before falling back to SearXNG):
+
+**Google** (100 free queries/day — note: Google now requires a linked billing
+account on the Cloud project even to use the free tier):
 1. https://programmablesearchengine.google.com/ → create a search engine → enable "Search the entire web"
 2. Copy its **Search engine ID** into `GOOGLE_SEARCH_ENGINE_ID`
-3. https://console.cloud.google.com/apis/credentials → enable "Custom Search API" → create an API key
-4. Copy it into `GOOGLE_SEARCH_API_KEY`
+3. https://console.cloud.google.com/apis/library/customsearch.googleapis.com → enable the API, and link a billing account
+4. https://console.cloud.google.com/apis/credentials → create an API key → copy into `GOOGLE_SEARCH_API_KEY`
 
-**Bing setup** (optional fallback, free tier: 1,000 calls/month):
-1. https://portal.azure.com → create a "Bing Search v7" resource
+**Bing** (1,000 free calls/month, requires an Azure account + free-tier subscription):
+1. https://portal.azure.com → create a "Bing Search v7" resource (F1 / free pricing tier)
 2. Copy its key into `BING_SEARCH_API_KEY`
 
 **"Join" always just opens the group's URL in a new tab** — the user joins with
